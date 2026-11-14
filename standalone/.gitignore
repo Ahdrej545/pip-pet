@@ -1,0 +1,8 @@
+# Local builds and signing credentials
+.build/
+*.jks
+*.keystore
+*password*
+*.idsig
+pip-error.log
+pip-status.txt

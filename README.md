@@ -2,6 +2,16 @@
 
 Бирюзовый лисёнок — любопытный и весёлый компаньон для работы и новых идей.
 
+## Пип без ChatGPT: Windows и Android
+
+Теперь Пип может жить отдельно на компьютере и телефоне, без ChatGPT и интернета.
+
+- [Скачать Pip.exe для Windows](https://github.com/Ahdrej545/pip-pet/raw/refs/heads/main/standalone/Pip.exe)
+- [Скачать Pip.apk для Android 11+](https://github.com/Ahdrej545/pip-pet/raw/refs/heads/main/standalone/Pip.apk)
+- [Установка, управление и сборка](standalone/README.md)
+
+Перетаскивание, приветствие по нажатию, прыжок по двойному нажатию, изменение размера и настройка автозапуска. На Android Пип отображается поверх приложений и останавливается при выключенном экране. Исходники обеих версий — в папке [`standalone`](standalone/).
+
 ![Пип в движении](all-states.gif)
 
 ## Что умеет
