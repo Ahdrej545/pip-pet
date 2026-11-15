@@ -3,7 +3,7 @@ from pathlib import Path
 import os, subprocess, zipfile, shutil, sys, secrets
 
 root=Path(__file__).resolve().parent
-build=root/'.build';build.mkdir(exist_ok=True)
+build=Path(os.environ.get('PIP_BUILD_DIR',str(root/'.build'))).resolve();build.mkdir(parents=True,exist_ok=True)
 def run(*args):subprocess.run([str(x) for x in args],check=True,env=env)
 env=dict(os.environ)
 if '--android-only' not in sys.argv:
@@ -27,7 +27,10 @@ env['JAVA_HOME']=str(jdk);env['PATH']=str(jdk/'bin')+os.pathsep+env.get('PATH','
 for p in [tools,androidjar,jdk/'bin'/('javac'+exe)]:
     if not p.exists():raise SystemExit('Missing build dependency: '+str(p))
 generated=build/'generated';classes=build/'classes';dex=build/'dex'
-for p in [generated,classes,dex]:p.mkdir(exist_ok=True)
+for p in [generated,classes,dex]:
+    if not p.resolve().is_relative_to(build):raise SystemExit('Unsafe intermediate directory')
+    if p.exists():shutil.rmtree(p)
+    p.mkdir()
 run(tools/('aapt2'+exe),'compile','--dir',root/'android/res','-o',build/'resources.zip')
 run(tools/('aapt2'+exe),'link','-o',build/'resources.apk','-I',androidjar,'--manifest',root/'android/AndroidManifest.xml','--java',generated,'-A',root/'android/assets',build/'resources.zip')
 sources=list((root/'android/src').rglob('*.java'))+list(generated.rglob('*.java'))
@@ -43,6 +46,7 @@ if not key.exists():
     passwordfile.write_text(secrets.token_urlsafe(32)+'\n',encoding='utf-8')
     run(jdk/'bin'/('keytool'+exe),'-genkeypair','-keystore',key,'-storepass:file',passwordfile,'-keypass:file',passwordfile,'-alias','pip','-keyalg','RSA','-keysize','2048','-validity','10000','-dname','CN=Pip Local Build')
 if not passwordfile.exists():raise SystemExit('Missing password file for existing signing key.')
-run(jdk/'bin'/('java'+exe),'-jar',tools/'lib/apksigner.jar','sign','--ks',key,'--ks-pass','file:'+str(passwordfile),'--out',root/'Pip.apk',build/'aligned.apk')
-run(jdk/'bin'/('java'+exe),'-jar',tools/'lib/apksigner.jar','verify','--verbose',root/'Pip.apk')
+run(jdk/'bin'/('java'+exe),'-jar',tools/'lib/apksigner.jar','sign','--ks',key,'--ks-pass','file:'+str(passwordfile),'--out',build/'Pip-signed.apk',build/'aligned.apk')
+run(jdk/'bin'/('java'+exe),'-jar',tools/'lib/apksigner.jar','verify','--verbose',build/'Pip-signed.apk')
+shutil.copy2(build/'Pip-signed.apk',root/'Pip.apk')
 print('Built Pip.apk. Keep your local signing key private.')

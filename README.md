@@ -6,6 +6,8 @@
 
 Теперь Пип может жить отдельно на компьютере и телефоне, без ChatGPT и интернета.
 
+**Версия 1.1:** Пип запоминает настройки, засыпает, радуется поглаживанию и играет. Добавлены скорость и активность, режим «не мешать», скрытие в полноэкранных приложениях Windows и проверка обновлений по кнопке.
+
 - [Скачать Pip.exe для Windows](https://github.com/Ahdrej545/pip-pet/raw/refs/heads/main/standalone/Pip.exe)
 - [Скачать Pip.apk для Android 11+](https://github.com/Ahdrej545/pip-pet/raw/refs/heads/main/standalone/Pip.apk)
 - [Установка, управление и сборка](standalone/README.md)
