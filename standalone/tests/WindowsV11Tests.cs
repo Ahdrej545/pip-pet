@@ -5,7 +5,7 @@ class Tests{
  static void Call(PetForm p,string name,params object[] args){typeof(PetForm).GetMethod(name,BindingFlags.Instance|BindingFlags.NonPublic).Invoke(p,args);}
  [STAThread]static void Main(){
   Check(PetForm.LookIndex(0,-100)==0,"up gaze");Check(PetForm.LookIndex(100,0)==4,"right gaze");Check(PetForm.LookIndex(0,100)==8,"down gaze");Check(PetForm.LookIndex(-100,0)==12,"left gaze");
-  Check(PetForm.ShouldSleep(90)&&!PetForm.ShouldSleep(89),"sleep boundary");Check(PetForm.Newer("1.2.0")&&!PetForm.Newer("1.1.0")&&!PetForm.Newer("broken"),"update version comparison");
+  Check(PetForm.ShouldSleep(90)&&!PetForm.ShouldSleep(89),"sleep boundary");Check(PetForm.Newer("9.0.0")&&!PetForm.Newer(PetForm.AppVersion)&&!PetForm.Newer("broken"),"update version comparison");
   Rectangle monitor=new Rectangle(-1920,0,1920,1080);Check(PetForm.CoversScreen(monitor,monitor),"fullscreen on secondary monitor");Check(!PetForm.CoversScreen(new Rectangle(-1920,0,1920,1040),monitor),"maximized window with taskbar is not fullscreen");
   string key=@"Software\PipDesktop.Tests\"+Guid.NewGuid().ToString("N");
   try{

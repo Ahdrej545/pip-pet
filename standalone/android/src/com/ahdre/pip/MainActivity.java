@@ -14,7 +14,7 @@ import javax.net.ssl.HttpsURLConnection;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
- public static final String VERSION="1.1.0";
+ public static final String VERSION="1.2.0";
  private TextView status;private SharedPreferences prefs;private boolean requestedStart,checking;
  int dp(float n){return Math.round(n*getResources().getDisplayMetrics().density);}
  @Override public void onCreate(Bundle state){
@@ -28,13 +28,22 @@ public class MainActivity extends Activity {
   buttonRow(page,new String[]{"Показать Пипа","Спрятать Пипа"},new String[]{"SHOW","STOP"});
   buttonRow(page,new String[]{"Погладить","Поиграть"},new String[]{"PET","PLAY"});
   buttonRow(page,new String[]{"Уложить спать","Не мешать 30 мин"},new String[]{"SLEEP","QUIET"});
+  buttonRow(page,new String[]{"Бросить мячик","Убрать мячик"},new String[]{"BALL","HIDE_BALL"});
+  buttonRow(page,new String[]{"Домой","Проверить напоминание"},new String[]{"HOME","REMIND"});
+  label(page,"Перетащи домик в удобное место. Мячик можно бросить пальцем — Пип принесёт его обратно. В режиме компании он спокойно сидит на выбранном месте.",14);
   label(page,"Настройки поведения",20);
   select(page,"Размер",new String[]{"Маленький","Обычный","Большой"},"size",new int[]{80,104,136},104);
   select(page,"Активность",new String[]{"Спокойный","Обычный","Игривый"},"activity",new int[]{0,1,2},1);
   select(page,"Скорость",new String[]{"Медленно","Обычно","Быстро"},"speed",new int[]{14,28,52},28);
+  select(page,"Режим компании",new String[]{"Свободно гулять","Компания на месте","У домика / в уголке"},"mode",new int[]{0,1,2},0);
+  select(page,"Аксессуар",new String[]{"Без аксессуара","Шарфик","Шапочка","Красный ошейник","Синий ошейник","Зелёный ошейник"},"accessory",new int[]{0,1,2,3,4,5},0);
+  select(page,"Напоминания о перерыве",new String[]{"Выключены","20 минут","30 минут","45 минут","60 минут"},"reminderMinutes",new int[]{0,20,30,45,60},45);
+  Switch home=new Switch(this);home.setText("Показывать домик");home.setTextSize(16);home.setChecked(prefs.getBoolean("homeVisible",true));home.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener(){public void onCheckedChanged(CompoundButton b,boolean checked){prefs.edit().putBoolean("homeVisible",checked).apply();if(prefs.getBoolean("enabled",false)&&Settings.canDrawOverlays(MainActivity.this))startForegroundService(new Intent(MainActivity.this,PetService.class).setAction("CONFIG"));}});page.addView(home);
   Switch boot=new Switch(this);boot.setText("Запускать с телефоном");boot.setTextSize(16);boot.setChecked(prefs.getBoolean("autostart",true));boot.setPadding(0,dp(12),0,dp(12));boot.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener(){public void onCheckedChanged(CompoundButton b,boolean checked){prefs.edit().putBoolean("autostart",checked).apply();}});page.addView(boot);
   label(page,"Пип запоминает место и размер. Без внимания засыпает через полторы минуты. Погладь его короткими движениями туда-сюда или кнопкой выше.\n\nОдин тап — приветствие, два — прыжок. Долгое нажатие открывает управление. «Показать Пипа» отменяет режим тишины.",15);
   addButton(page,"Проверить обновления",new View.OnClickListener(){public void onClick(View v){checkUpdates();}});
+  addButton(page,"Экспорт настроек в файл",new View.OnClickListener(){public void onClick(View v){if(prefs.getBoolean("enabled",false)&&Settings.canDrawOverlays(MainActivity.this))startForegroundService(new Intent(MainActivity.this,PetService.class).setAction("SNAPSHOT"));Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json").putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI,Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload")).putExtra(Intent.EXTRA_TITLE,"pip-settings.pip.json");startActivityForResult(i,51);}});
+  addButton(page,"Импорт настроек из файла",new View.OnClickListener(){public void onClick(View v){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json").putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI,Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload"));startActivityForResult(i,52);}});
   addButton(page,"Разрешение поверх приложений",new View.OnClickListener(){public void onClick(View v){startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));}});
   label(page,"На некоторых телефонах автозапуск нужно дополнительно разрешить в системных настройках. Во время выключенного экрана Пип отдыхает.",13);
   refresh();
@@ -50,6 +59,7 @@ public class MainActivity extends Activity {
   SharedPreferences.Editor edit=prefs.edit().putBoolean("enabled",true);if(!"QUIET".equals(action))edit.putLong("quietUntil",0);edit.apply();startForegroundService(new Intent(this,PetService.class).setAction(action));refresh();
  }
  void refresh(){if(status==null)return;String s=!Settings.canDrawOverlays(this)?"Нужно разрешение поверх приложений":!prefs.getBoolean("enabled",false)?"Пип спрятан":prefs.getLong("quietUntil",0)>System.currentTimeMillis()?"Пип отдыхает в режиме «не мешать»":"Пип готов к общению";status.setText(s);}
+ @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(result!=RESULT_OK||data==null||data.getData()==null)return;try{if(request==51){try(OutputStream out=getContentResolver().openOutputStream(data.getData())){if(out==null)throw new IOException();out.write(Profile.from(prefs).json().toString(2).getBytes("UTF-8"));}Toast.makeText(this,"Настройки сохранены. Передай файл на другое устройство.",Toast.LENGTH_LONG).show();}else if(request==52){ByteArrayOutputStream bytes=new ByteArrayOutputStream();try(InputStream in=getContentResolver().openInputStream(data.getData())){if(in==null)throw new IOException();byte[] buffer=new byte[2048];int n;while((n=in.read(buffer))!=-1){if(bytes.size()+n>65536)throw new IOException();bytes.write(buffer,0,n);}}Profile imported=Profile.parse(bytes.toString("UTF-8"));imported.apply(prefs);if(prefs.getBoolean("enabled",false)&&Settings.canDrawOverlays(this))startForegroundService(new Intent(this,PetService.class).setAction("IMPORT"));Toast.makeText(this,"Настройки перенесены. Системные разрешения не менялись.",Toast.LENGTH_LONG).show();recreate();}}catch(Exception e){new AlertDialog.Builder(this).setTitle("Настройки Пипа").setMessage("Не удалось обработать файл. Нужны настройки Пипа в формате .pip.json.").setPositiveButton("Понятно",null).show();}}
  public static int compareVersions(String a,String b){String[] x=a.split("\\."),y=b.split("\\.");for(int i=0;i<Math.max(x.length,y.length);i++){int l=i<x.length?Integer.parseInt(x[i]):0,r=i<y.length?Integer.parseInt(y[i]):0;if(l!=r)return l<r?-1:1;}return 0;}
  void checkUpdates(){
   if(checking)return;checking=true;Toast.makeText(this,"Проверяю версию на GitHub…",Toast.LENGTH_SHORT).show();

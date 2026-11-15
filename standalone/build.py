@@ -9,7 +9,7 @@ env=dict(os.environ)
 if '--android-only' not in sys.argv:
     if os.name!='nt':raise SystemExit('Windows build requires Windows; use --android-only for Android.')
     csc=Path(os.environ.get('WINDIR','C:/Windows'))/'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
-    run(csc,'/nologo','/target:winexe','/optimize+','/platform:anycpu','/out:'+str(root/'Pip.exe'),'/win32icon:'+str(root/'windows/pip.ico'),'/resource:'+str(root/'windows/spritesheet.png')+',pip.atlas','/resource:'+str(root/'windows/pip.ico')+',pip.icon','/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll',root/'windows/Pip.cs')
+    run(csc,'/nologo','/target:winexe','/optimize+','/platform:anycpu','/out:'+str(root/'Pip.exe'),'/win32icon:'+str(root/'windows/pip.ico'),'/resource:'+str(root/'windows/spritesheet.png')+',pip.atlas','/resource:'+str(root/'windows/pip.ico')+',pip.icon','/resource:'+str(root/'windows/accessory-anchors.json')+',pip.anchors','/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll','/reference:System.Web.Extensions.dll',*sorted((root/'windows').glob('*.cs')))
 if '--windows-only' in sys.argv:sys.exit(0)
 sdk_value=os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT')
 sdk=Path(sdk_value) if sdk_value else Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'Android/Sdk'

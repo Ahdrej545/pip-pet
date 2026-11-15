@@ -27,8 +27,8 @@ namespace PipDesktop {
    }
   }
  }
- public class PetForm : Form {
-  public const string AppVersion="1.1.0";
+ public partial class PetForm : Form {
+  public const string AppVersion="1.2.0";
   const string SettingsPath=@"Software\PipDesktop";
   readonly string settingsSubkey;bool cleaned=false;
   const int CW=192, CH=208;
@@ -85,9 +85,10 @@ namespace PipDesktop {
    timer=new System.Windows.Forms.Timer(); timer.Interval=40; timer.Tick+=Tick;
    Shown+=delegate{RenderFrame(0,0);timer.Start();};
    SystemEvents.DisplaySettingsChanged+=DisplayChanged;
+   InitV12(showTray);
   }
   bool HasStartup(){using(RegistryKey k=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){return k!=null&&k.GetValue("PipDesktop")!=null;}}
-  void SaveSettings(){using(RegistryKey k=Registry.CurrentUser.CreateSubKey(settingsSubkey)){k.SetValue("X",Left);k.SetValue("Y",Top);k.SetValue("Size",scale);k.SetValue("Speed",speed);k.SetValue("Activity",activity);k.SetValue("Topmost",TopMost?1:0);k.SetValue("Fullscreen",autoFullscreen?1:0);}saved=DateTime.UtcNow;}
+  void SaveSettings(){using(RegistryKey k=Registry.CurrentUser.CreateSubKey(settingsSubkey)){k.SetValue("X",Left);k.SetValue("Y",Top);k.SetValue("Size",scale);k.SetValue("Speed",speed);k.SetValue("Activity",activity);k.SetValue("Topmost",TopMost?1:0);k.SetValue("Fullscreen",autoFullscreen?1:0);SaveV12(k);}saved=DateTime.UtcNow;}
   void Touch(){touched=DateTime.UtcNow;sleeping=false;}
   void Pet(){Touch();happyUntil=DateTime.UtcNow.AddSeconds(5);SetState(6,5000);}
   bool IsFullscreen(){IntPtr h=GetForegroundWindow();if(h==IntPtr.Zero||h==Handle)return false;StringBuilder name=new StringBuilder(128);GetClassName(h,name,128);if(name.ToString()=="Progman"||name.ToString()=="WorkerW"||name.ToString()=="Shell_TrayWnd")return false;RECT r;if(!GetWindowRect(h,out r))return false;return CoversScreen(Rectangle.FromLTRB(r.l,r.t,r.r,r.b),Screen.FromHandle(h).Bounds);}
@@ -102,10 +103,11 @@ namespace PipDesktop {
   void Tick(object s,EventArgs e){
    DateTime now=DateTime.UtcNow;int dt=Math.Min(150,Math.Max(1,(int)(now-last).TotalMilliseconds));last=now;
    if(now>=screenCheck){fullscreen=autoFullscreen&&IsFullscreen();screenCheck=now.AddMilliseconds(700);}
-   bool hidden=now<quietUntil||fullscreen;if(hidden){if(Visible)Hide();return;}if(!Visible)Show();
+   bool hidden=now<quietUntil||fullscreen||sessionLocked;if(hidden){SyncDecor(true);if(Visible)Hide();return;}if(!Visible)Show();
    if((now-saved).TotalSeconds>=10)SaveSettings();
    if(dragging)return;
    if(paused){RenderFrame(0,0);return;}
+   if(UpdateV12(dt,now))return;
    sleeping=ShouldSleep((now-touched).TotalSeconds);if(sleeping){tray.Text="Пип спит — погладь, чтобы разбудить";RenderFrame(0,3);return;}
    if(now<happyUntil){tray.Text="Пип радуется поглаживанию";RenderFrame(6,3);return;}
    tray.Text="Пип "+AppVersion+" — нажми или погладь лисёнка";
@@ -120,13 +122,13 @@ namespace PipDesktop {
   void RenderFrame(int r,int f){if(!IsHandleCreated||IsDisposed)return;
    if(r==renderedRow&&f==renderedFrame&&Left==renderedLeft&&Top==renderedTop&&Width==renderedWidth)return;
    using(Bitmap b=new Bitmap(Width,Height,PixelFormat.Format32bppPArgb)){
-    using(Graphics g=Graphics.FromImage(b)){g.Clear(Color.Transparent);g.InterpolationMode=InterpolationMode.HighQualityBicubic;g.PixelOffsetMode=PixelOffsetMode.HighQuality;g.DrawImage(atlas,new Rectangle(0,0,Width,Height),new Rectangle(f*CW,r*CH,CW,CH),GraphicsUnit.Pixel);}
+    using(Graphics g=Graphics.FromImage(b)){g.Clear(Color.Transparent);g.InterpolationMode=InterpolationMode.HighQualityBicubic;g.PixelOffsetMode=PixelOffsetMode.HighQuality;g.DrawImage(atlas,new Rectangle(0,0,Width,Height),new Rectangle(f*CW,r*CH,CW,CH),GraphicsUnit.Pixel);DrawAccessory(g,r,f);}
     IntPtr screen=GetDC(IntPtr.Zero),mem=CreateCompatibleDC(screen),hb=IntPtr.Zero,old=IntPtr.Zero;
     try{hb=b.GetHbitmap(Color.FromArgb(0));old=SelectObject(mem,hb);POINT pt=new POINT(Left,Top),src=new POINT(0,0);SIZE size=new SIZE(Width,Height);BLENDFUNCTION blend=new BLENDFUNCTION();blend.SourceConstantAlpha=255;blend.AlphaFormat=1;bool ok=UpdateLayeredWindow(Handle,screen,ref pt,ref size,mem,ref src,0,ref blend,2);if(!reported){File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"pip-status.txt"),"LayeredWindow="+ok+"\nVisible="+IsWindowVisible(Handle)+"\nPosition="+Left+","+Top+"\nSize="+Width+"x"+Height+"\nVersion="+AppVersion+"\n");reported=true;}if(ok){renderedRow=r;renderedFrame=f;renderedLeft=Left;renderedTop=Top;renderedWidth=Width;}}
     finally{if(old!=IntPtr.Zero)SelectObject(mem,old);if(hb!=IntPtr.Zero)DeleteObject(hb);DeleteDC(mem);ReleaseDC(IntPtr.Zero,screen);}
    }
   }
-  void Cleanup(){if(cleaned)return;cleaned=true;if(timer!=null){timer.Stop();timer.Dispose();}if(tray!=null){tray.Visible=false;tray.Dispose();}if(atlas!=null)atlas.Dispose();SystemEvents.DisplaySettingsChanged-=DisplayChanged;}
+  void Cleanup(){if(cleaned)return;cleaned=true;CleanupV12();if(timer!=null){timer.Stop();timer.Dispose();}if(tray!=null){tray.Visible=false;tray.Dispose();}if(atlas!=null)atlas.Dispose();SystemEvents.DisplaySettingsChanged-=DisplayChanged;}
   protected override void OnFormClosed(FormClosedEventArgs e){SaveSettings();Cleanup();base.OnFormClosed(e);}
   protected override void Dispose(bool disposing){if(disposing)Cleanup();base.Dispose(disposing);}
   [StructLayout(LayoutKind.Sequential)]struct RECT{public int l,t,r,b;}
