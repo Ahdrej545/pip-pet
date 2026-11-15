@@ -1,0 +1,20 @@
+using System;using System.Drawing;using System.Drawing.Drawing2D;using System.Collections.Generic;using System.Text;using System.Web.Script.Serialization;using System.Windows.Forms;using Microsoft.Win32;
+namespace PipDesktop {
+ public partial class PetForm {
+  string duoId;int duoGuestRow=3,lastShelfCount=-1;Point beforeDuo;bool duoBall;string duoGame="none";
+  bool RunVisitTogether(DateTime now){FriendVisit v=social.ActiveVisit;
+   if(v==null||v.outgoing||v.features<2){if(duoId!=null){duoId=null;duoGame="none";Location=beforeDuo;Clamp();if(ball!=null)ball.Hide();duoBall=false;life.Note("Проводили друга домой. До новой встречи!");SaveSettings();}return false;}
+   if(guest==null||ball==null)return false;
+   if(duoId!=v.id){beforeDuo=Location;StopActivity();Touch();duoId=v.id;fetch.Visible=false;life.Note((v.meetings>1?"Снова пришёл ":"В гости пришёл ")+v.pet.name+". Встреча №"+v.meetings+".");if(v.gift!="none"&&VisitLife.Gift(v.gift))life.Note("Остался подарок от "+v.pet.name+": "+VisitLife.GiftName(v.gift)+".");SaveSettings();}
+   double seconds=(now-new DateTime(1970,1,1,0,0,0,DateTimeKind.Utc)).TotalSeconds-v.gameAt;
+   DuoFrame pose=DuoFrame.At(v.game,seconds);duoGame=seconds>=30?"rest":v.game??"rest";
+   Rectangle a=Screen.FromPoint(new Point(homeX+44,homeY+38)).WorkingArea;double lane=Math.Min(500,a.Width),left=Math.Max(a.Left,Math.Min(a.Right-lane,homeX-lane*.7)),floor=Math.Max(a.Top+Math.Max(Height,guest.Height),Math.Min(a.Bottom,homeY+76));
+   Left=(int)Math.Max(a.Left,Math.Min(a.Right-Width,left+lane*pose.host-Width/2));Top=(int)floor-Height;duoGuestRow=pose.guestRow;guestFrame=pose.guestFrame;
+   guest.Location=new Point((int)Math.Max(a.Left,Math.Min(a.Right-guest.Width,left+lane*pose.guest-guest.Width/2)),(int)floor-guest.Height);if(!guest.Visible)guest.Show();guest.PaintNow();RenderFrame(pose.hostRow,pose.hostFrame);
+   if(pose.showBall){ball.Location=new Point((int)(left+lane*pose.ball-14),(int)(floor-28-pose.ballHeight));if(!ball.Visible)ball.Show();ball.PaintNow();duoBall=true;}else if(duoBall){ball.Hide();duoBall=false;}return true;
+  }
+  void DrawGiftShelf(Graphics g){int total=social==null?0:social.GiftTotal;lastShelfCount=total;if(total==0)return;string[] types={"leaf","toy","card"};for(int i=0;i<3;i++){int count=social.GiftCount(types[i]);if(count==0)continue;float x=18+i*45;DrawGift(g,types[i],x,4);using(Font f=new Font("Segoe UI",8))g.DrawString(count.ToString(),f,Brushes.Teal,x+20,17);}}
+  public static void DrawGift(Graphics g,string kind,float x,float y){if(kind=="leaf"){using(SolidBrush leaf=new SolidBrush(Color.SeaGreen))g.FillEllipse(leaf,x,y,14,24);g.DrawLine(Pens.Gold,x+2,y+23,x+13,y+3);}else if(kind=="toy"){g.FillEllipse(Brushes.Orange,x,y+3,22,22);using(Pen p=new Pen(Color.Teal,3))g.DrawArc(p,x+2,y+7,17,12,20,220);}else{g.FillRectangle(Brushes.LightGoldenrodYellow,x,y+5,25,18);g.DrawRectangle(Pens.Tan,x,y+5,25,18);g.FillEllipse(Brushes.IndianRed,x+7,y+9,8,8);}}
+  void ShowVisitMemories(){RelaySaved data=social.ReadMemories();StringBuilder text=new StringBuilder("Подарки остаются в уголке после визита.\r\n");foreach(string type in new[]{"leaf","toy","card"}){int count=0;if(data.giftCounts!=null)data.giftCounts.TryGetValue(type,out count);text.Append(VisitLife.GiftName(type)+": "+count+"\r\n");}text.Append("\r\nЗнакомые Пипы\r\n");if(data.friends!=null)foreach(RelayFriend f in data.friends)if(f.meetings>0)text.Append(f.name+" · встреч: "+f.meetings+"\r\n");text.Append("\r\nПоследние подарки\r\n");if(data.gifts!=null)foreach(GiftRecord gift in data.gifts)text.Append(new DateTime(1970,1,1).AddSeconds(gift.time).ToLocalTime().ToString("dd.MM HH:mm")+" · "+VisitLife.GiftName(gift.kind)+" от "+gift.name+"\r\n");using(Form f=new Form{Text="Подарки и встречи",Width=480,Height=460,StartPosition=FormStartPosition.CenterScreen}){f.Controls.Add(new TextBox{Dock=DockStyle.Fill,Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,Font=new Font("Segoe UI",11),Text=text.ToString()});f.ShowDialog();}}
+ }
+}

@@ -1,6 +1,6 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "windows": "https://github.com/Ahdrej545/pip-pet/raw/refs/heads/main/standalone/Pip.exe",
   "android": "https://github.com/Ahdrej545/pip-pet/raw/refs/heads/main/standalone/Pip.apk",
-  "notes": "Дружба, привычки, дневник, новые игры, уют, танцы, рабочий режим и визиты к друзьям через интернет."
+  "notes": "Совместные игры в гостях, подарки и коллекция, память о встречах со знакомыми друзьями."
 }

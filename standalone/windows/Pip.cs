@@ -28,7 +28,7 @@ namespace PipDesktop {
   }
  }
  public partial class PetForm : Form {
-  public const string AppVersion="1.3.0";
+  public const string AppVersion="1.4.0";
   const string SettingsPath=@"Software\PipDesktop";
   readonly string settingsSubkey;bool cleaned=false;
   const int CW=192, CH=208;
@@ -88,7 +88,7 @@ namespace PipDesktop {
    InitV12(showTray);InitLife();
   }
   bool HasStartup(){using(RegistryKey k=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){return k!=null&&k.GetValue("PipDesktop")!=null;}}
-  void SaveSettings(){using(RegistryKey k=Registry.CurrentUser.CreateSubKey(settingsSubkey)){k.SetValue("X",Left);k.SetValue("Y",Top);k.SetValue("Size",scale);k.SetValue("Speed",speed);k.SetValue("Activity",activity);k.SetValue("Topmost",TopMost?1:0);k.SetValue("Fullscreen",autoFullscreen?1:0);SaveV12(k);SaveLife(k);}saved=DateTime.UtcNow;}
+  void SaveSettings(){using(RegistryKey k=Registry.CurrentUser.CreateSubKey(settingsSubkey)){k.SetValue("X",duoId!=null?beforeDuo.X:Left);k.SetValue("Y",duoId!=null?beforeDuo.Y:Top);k.SetValue("Size",scale);k.SetValue("Speed",speed);k.SetValue("Activity",activity);k.SetValue("Topmost",TopMost?1:0);k.SetValue("Fullscreen",autoFullscreen?1:0);SaveV12(k);SaveLife(k);}saved=DateTime.UtcNow;}
   void Touch(){touched=DateTime.UtcNow;sleeping=false;}
   void Pet(){Reward("Погладили за ушком. Хорошо рядом с тобой.");Touch();happyUntil=DateTime.UtcNow.AddSeconds(5);SetState(6,5000);}
   bool IsFullscreen(){IntPtr h=GetForegroundWindow();if(h==IntPtr.Zero||h==Handle)return false;StringBuilder name=new StringBuilder(128);GetClassName(h,name,128);if(name.ToString()=="Progman"||name.ToString()=="WorkerW"||name.ToString()=="Shell_TrayWnd")return false;RECT r;if(!GetWindowRect(h,out r))return false;return CoversScreen(Rectangle.FromLTRB(r.l,r.t,r.r,r.b),Screen.FromHandle(h).Bounds);}
