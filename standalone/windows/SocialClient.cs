@@ -1,0 +1,35 @@
+using System;using System.Collections.Generic;using System.IO;using System.Net;using System.Text;using System.Threading;using System.Web.Script.Serialization;using System.Windows.Forms;using Microsoft.Win32;
+namespace PipDesktop {
+ public class FriendPet {public string id,name,code;public int accessory;public bool accepted,incoming,online;}
+ public class FriendVisit {public string id,status;public bool outgoing;public double expires;public FriendPet pet;}
+ public class FriendState {public string id,token,code,error;public FriendPet[] friends;public FriendVisit[] visits;}
+ class SocialClient:IDisposable {
+  // Filled with the deployed HTTPS endpoint; never contains credentials.
+  public const string Endpoint="https://ntfy.sh";
+  FriendsRelay relay;
+  PetForm owner;string key,name="Пип",code="",message="Сеть выключена";bool enabled,busy,disposed;string pendingRoute;Dictionary<string,object> pendingData;DateTime poll=DateTime.MinValue;FriendState state=new FriendState();Form window;ListBox list;Label status;CheckBox toggle;TextBox nameBox,codeBox;
+  public FriendPet Visitor {get{if(state.visits!=null)foreach(FriendVisit v in state.visits)if(v.status=="active"&&!v.outgoing)return v.pet;return null;}}
+  public bool Away {get{if(!enabled)return false;if(state.visits!=null)foreach(FriendVisit v in state.visits)if(v.status=="active"&&v.outgoing)return true;return false;}}
+  public SocialClient(PetForm f,string k){owner=f;key=k;relay=new FriendsRelay(k);code=relay.Code;using(RegistryKey r=Registry.CurrentUser.OpenSubKey(key)){if(r!=null){name=(string)r.GetValue("SocialName","Пип");enabled=Convert.ToInt32(r.GetValue("SocialEnabled",0))==1;}}}
+  void Save(){using(RegistryKey k=Registry.CurrentUser.CreateSubKey(key)){k.SetValue("SocialCode",code);k.SetValue("SocialName",name);k.SetValue("SocialEnabled",enabled?1:0);}}
+  public void Tick(DateTime now){if(enabled&&!busy&&now>=poll){poll=now.AddSeconds(10);Call("/state",null);}}
+  public void Open(){if(window!=null&&!window.IsDisposed){window.Activate();return;}window=new Form{Text="Друзья и визиты Пипа",Width=530,Height=670,StartPosition=FormStartPosition.CenterScreen};FlowLayoutPanel p=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.TopDown,WrapContents=false,AutoScroll=true,Padding=new Padding(12)};window.Controls.Add(p);
+   p.Controls.Add(new Label{Text="Бесплатная связь через ntfy, без регистрации. Код передай лично.\nВизит на 3 минуты принимает хозяин; без связи он закончится.",Width=475,Height=45});
+   toggle=new CheckBox{Text="Включить друзей через интернет",Width=460,Checked=enabled};p.Controls.Add(toggle);toggle.CheckedChanged+=delegate{enabled=toggle.Checked;if(!enabled){state=new FriendState();Call("/disconnect",null);}else{poll=DateTime.MinValue;}Save();Refresh();};
+   p.Controls.Add(new Label{Text="Имя твоего Пипа (видят друзья)",Width=460});nameBox=new TextBox{Text=name,Width=460,MaxLength=24};p.Controls.Add(nameBox);Button save=new Button{Text="Сохранить имя",Width=460};save.Click+=delegate{if(nameBox.Text.Trim().Length>0){name=nameBox.Text.Trim();Save();poll=DateTime.MinValue;}};p.Controls.Add(save);
+   status=new Label{Width=470,Height=95};p.Controls.Add(status);Button copy=new Button{Text="Скопировать мой код друга",Width=460};copy.Click+=delegate{if(code.Length>0)Clipboard.SetText(code);};p.Controls.Add(copy);
+   codeBox=new TextBox{Width=460,MaxLength=90};p.Controls.Add(codeBox);Button add=new Button{Text="Добавить друга по коду",Width=460};add.Click+=delegate{Call("/friend/request",new Dictionary<string,object>{{"code",codeBox.Text.Trim()}});};p.Controls.Add(add);
+   list=new ListBox{Width=460,Height=130};p.Controls.Add(list);
+   Add(p,"Принять выбранного друга","/friend/accept",true);Add(p,"Удалить друга / отклонить запрос","/friend/remove",true);Add(p,"Отправить своего Пипа в гости","/visit/request",true);Add(p,"Принять входящий визит","/visit/accept",false);Add(p,"Вернуть домой / завершить визит","/visit/end",false);Refresh();window.Show();
+  }
+  void Add(FlowLayoutPanel p,string title,string route,bool friend){Button b=new Button{Text=title,Width=460,Height=30};b.Click+=delegate{Dictionary<string,object> data=new Dictionary<string,object>();if(friend){int i=list.SelectedIndex;if(i<0||state.friends==null||i>=state.friends.Length){message="Выбери друга в списке";Refresh();return;}data["friend"]=state.friends[i].id;}else if(route=="/visit/accept"){FriendVisit found=null;if(state.visits!=null)foreach(FriendVisit v in state.visits)if(!v.outgoing&&v.status=="pending")found=v;if(found==null){message="Нет входящего визита";Refresh();return;}data["visit"]=found.id;}Call(route,data);};p.Controls.Add(b);}
+  void Refresh(){if(window==null||window.IsDisposed||status==null)return;status.Text="Мой код: "+(code.Length==0?"появится после подключения":code)+"\n"+message;if(state.visits!=null)foreach(FriendVisit v in state.visits)status.Text+="\n"+(v.status=="pending"?(v.outgoing?"Ждём разрешения на визит":"Входящий визит: "+v.pet.name):(v.outgoing?"Пип гостит у друга":"В гостях: "+v.pet.name));int selected=list.SelectedIndex;list.Items.Clear();if(state.friends!=null)foreach(FriendPet f in state.friends)list.Items.Add(f.name+" · "+(f.accepted?(f.online?"недавно в сети":"доступность при визите"):f.incoming?"входящий запрос":"ожидает подтверждения"));if(selected>=0&&selected<list.Items.Count)list.SelectedIndex=selected;}
+  void Call(string route,Dictionary<string,object> data){if(disposed)return;if(busy){if(route!="/state"){pendingRoute=route;pendingData=data;message="Отправлю после проверки связи…";Refresh();}return;}if(!enabled&&route!="/disconnect"){message="Сначала включи друзей через интернет";Refresh();return;}busy=true;Dictionary<string,object> payload=data??new Dictionary<string,object>();string localName=name;int acc=owner.SocialAccessory;
+   ThreadPool.QueueUserWorkItem(delegate{FriendState result=null;string error=null;try{ServicePointManager.SecurityProtocol=SecurityProtocolType.Tls12;result=relay.Perform(route,payload,localName,acc);}catch(WebException){error="Нет связи или лимит бесплатного сервиса. Пип дома.";}catch(Exception e){error=e is System.IO.InvalidDataException?"Код друга не подходит":e.Message;}
+    if(disposed||owner.IsDisposed)return;try{owner.BeginInvoke((MethodInvoker)delegate{busy=false;if(error!=null){message=error;state=new FriendState();}else if(result!=null){state=enabled?result:new FriendState();message=enabled?"Связь ntfy · проверка каждые 10 секунд.":"Сеть выключена";}Refresh();if(pendingRoute!=null){string next=pendingRoute;Dictionary<string,object> nextData=pendingData;pendingRoute=null;pendingData=null;Call(next,nextData);}});}catch(InvalidOperationException){}
+   });
+  }
+  public void Dispose(){disposed=true;state=new FriendState();if(window!=null)window.Dispose();}
+ }
+ public partial class PetForm {internal int SocialAccessory{get{return accessory;}}}
+}

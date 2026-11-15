@@ -28,7 +28,7 @@ namespace PipDesktop {
   }
  }
  public partial class PetForm : Form {
-  public const string AppVersion="1.2.0";
+  public const string AppVersion="1.3.0";
   const string SettingsPath=@"Software\PipDesktop";
   readonly string settingsSubkey;bool cleaned=false;
   const int CW=192, CH=208;
@@ -76,7 +76,7 @@ namespace PipDesktop {
    startup.CheckedChanged+=delegate{using(RegistryKey k=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){if(startup.Checked)k.SetValue("PipDesktop","\""+Application.ExecutablePath+"\"");else k.DeleteValue("PipDesktop",false);}}; menu.Items.Add(startup);
    menu.Items.Add("Вернуть к краю экрана",null,delegate{work=Screen.PrimaryScreen.WorkingArea;Left=work.Right-Width-70;Top=work.Bottom-Height;SetState(3,700);RenderFrame(3,0);});
    menu.Items.Add("Проверить обновления…",null,delegate{CheckUpdates();});
-   menu.Items.Add("О Пипе "+AppVersion,null,delegate{MessageBox.Show("Пип "+AppVersion+"\nСон, поглаживание, игры и сохранение настроек.\nПроверка обновлений обращается к GitHub только по кнопке.","Пип");});
+   menu.Items.Add("О Пипе "+AppVersion,null,delegate{MessageBox.Show("Пип "+AppVersion+"\nИгры, уют, дружба, дневник и визиты.\nИнтернет: включённые визиты и проверка версии по кнопке.","Пип");});
    menu.Items.Add("Выход",null,delegate{Close();}); ContextMenuStrip=menu;
    tray=new NotifyIcon(); tray.Text="Пип — нажми на лисёнка или открой меню"; tray.ContextMenuStrip=menu;
    using(Stream s=Assembly.GetExecutingAssembly().GetManifestResourceStream("pip.icon")){tray.Icon=new Icon(s);} tray.Visible=showTray;
@@ -85,12 +85,12 @@ namespace PipDesktop {
    timer=new System.Windows.Forms.Timer(); timer.Interval=40; timer.Tick+=Tick;
    Shown+=delegate{RenderFrame(0,0);timer.Start();};
    SystemEvents.DisplaySettingsChanged+=DisplayChanged;
-   InitV12(showTray);
+   InitV12(showTray);InitLife();
   }
   bool HasStartup(){using(RegistryKey k=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){return k!=null&&k.GetValue("PipDesktop")!=null;}}
-  void SaveSettings(){using(RegistryKey k=Registry.CurrentUser.CreateSubKey(settingsSubkey)){k.SetValue("X",Left);k.SetValue("Y",Top);k.SetValue("Size",scale);k.SetValue("Speed",speed);k.SetValue("Activity",activity);k.SetValue("Topmost",TopMost?1:0);k.SetValue("Fullscreen",autoFullscreen?1:0);SaveV12(k);}saved=DateTime.UtcNow;}
+  void SaveSettings(){using(RegistryKey k=Registry.CurrentUser.CreateSubKey(settingsSubkey)){k.SetValue("X",Left);k.SetValue("Y",Top);k.SetValue("Size",scale);k.SetValue("Speed",speed);k.SetValue("Activity",activity);k.SetValue("Topmost",TopMost?1:0);k.SetValue("Fullscreen",autoFullscreen?1:0);SaveV12(k);SaveLife(k);}saved=DateTime.UtcNow;}
   void Touch(){touched=DateTime.UtcNow;sleeping=false;}
-  void Pet(){Touch();happyUntil=DateTime.UtcNow.AddSeconds(5);SetState(6,5000);}
+  void Pet(){Reward("Погладили за ушком. Хорошо рядом с тобой.");Touch();happyUntil=DateTime.UtcNow.AddSeconds(5);SetState(6,5000);}
   bool IsFullscreen(){IntPtr h=GetForegroundWindow();if(h==IntPtr.Zero||h==Handle)return false;StringBuilder name=new StringBuilder(128);GetClassName(h,name,128);if(name.ToString()=="Progman"||name.ToString()=="WorkerW"||name.ToString()=="Shell_TrayWnd")return false;RECT r;if(!GetWindowRect(h,out r))return false;return CoversScreen(Rectangle.FromLTRB(r.l,r.t,r.r,r.b),Screen.FromHandle(h).Bounds);}
   void CheckUpdates(){if(checking)return;checking=true;ThreadPool.QueueUserWorkItem(delegate{string message;bool newer=false;try{ServicePointManager.SecurityProtocol=SecurityProtocolType.Tls12;using(WebClient client=new UpdateClient()){client.Headers["User-Agent"]="Pip/"+AppVersion;string json=client.DownloadString("https://raw.githubusercontent.com/Ahdrej545/pip-pet/main/standalone/version.json");Match m=Regex.Match(json,"\"version\"\\s*:\\s*\"([0-9.]+)\"");if(!m.Success)throw new Exception();newer=Newer(m.Groups[1].Value);message=newer?"Доступен Пип "+m.Groups[1].Value+". Открыть страницу скачивания?":"У тебя актуальная версия Пипа ("+AppVersion+").";}}catch{message="Не удалось проверить обновления. Пип продолжит работать без интернета.";}if(!IsDisposed)BeginInvoke((MethodInvoker)delegate{checking=false;if(newer){if(MessageBox.Show(message,"Пип",MessageBoxButtons.YesNo)==DialogResult.Yes)Process.Start(new ProcessStartInfo("https://github.com/Ahdrej545/pip-pet/tree/main/standalone"){UseShellExecute=true});}else MessageBox.Show(message,"Пип");});});}
   void DisplayChanged(object s,EventArgs e){if(!IsDisposed)BeginInvoke((MethodInvoker)delegate{Clamp();});}
@@ -103,10 +103,11 @@ namespace PipDesktop {
   void Tick(object s,EventArgs e){
    DateTime now=DateTime.UtcNow;int dt=Math.Min(150,Math.Max(1,(int)(now-last).TotalMilliseconds));last=now;
    if(now>=screenCheck){fullscreen=autoFullscreen&&IsFullscreen();screenCheck=now.AddMilliseconds(700);}
-   bool hidden=now<quietUntil||fullscreen||sessionLocked;if(hidden){SyncDecor(true);if(Visible)Hide();return;}if(!Visible)Show();
+   bool hidden=now<quietUntil||fullscreen||sessionLocked;if(hidden){LifeVisible(false);SyncDecor(true);if(Visible)Hide();return;}if(!Visible)Show();
    if((now-saved).TotalSeconds>=10)SaveSettings();
    if(dragging)return;
    if(paused){RenderFrame(0,0);return;}
+   if(UpdateLife(dt,now))return;
    if(UpdateV12(dt,now))return;
    sleeping=ShouldSleep((now-touched).TotalSeconds);if(sleeping){tray.Text="Пип спит — погладь, чтобы разбудить";RenderFrame(0,3);return;}
    if(now<happyUntil){tray.Text="Пип радуется поглаживанию";RenderFrame(6,3);return;}
@@ -128,7 +129,7 @@ namespace PipDesktop {
     finally{if(old!=IntPtr.Zero)SelectObject(mem,old);if(hb!=IntPtr.Zero)DeleteObject(hb);DeleteDC(mem);ReleaseDC(IntPtr.Zero,screen);}
    }
   }
-  void Cleanup(){if(cleaned)return;cleaned=true;CleanupV12();if(timer!=null){timer.Stop();timer.Dispose();}if(tray!=null){tray.Visible=false;tray.Dispose();}if(atlas!=null)atlas.Dispose();SystemEvents.DisplaySettingsChanged-=DisplayChanged;}
+  void Cleanup(){if(cleaned)return;cleaned=true;CleanupLife();CleanupV12();if(timer!=null){timer.Stop();timer.Dispose();}if(tray!=null){tray.Visible=false;tray.Dispose();}if(atlas!=null)atlas.Dispose();SystemEvents.DisplaySettingsChanged-=DisplayChanged;}
   protected override void OnFormClosed(FormClosedEventArgs e){SaveSettings();Cleanup();base.OnFormClosed(e);}
   protected override void Dispose(bool disposing){if(disposing)Cleanup();base.Dispose(disposing);}
   [StructLayout(LayoutKind.Sequential)]struct RECT{public int l,t,r,b;}

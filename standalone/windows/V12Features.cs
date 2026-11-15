@@ -25,12 +25,12 @@ namespace PipDesktop {
   }
  }
  public class FetchGame {
-  public double X,Y,VX,VY;public int Phase;public bool Visible;double age;
+  public double X,Y,VX,VY;public int Phase,Returns;public bool Visible;double age;
   public void Throw(double x,double y,double vx,double vy){X=x;Y=y;VX=Math.Max(-600,Math.Min(600,vx));VY=Math.Max(-450,Math.Min(100,vy));Phase=1;Visible=true;age=0;}
   public bool Step(double dt,ref double petX,double petWidth,double petHeight,double floor,double homeCenter,double left,double right,double pace){
    if(Phase==0)return false;age+=dt;
    if(Phase==1){X+=VX*dt;Y+=VY*dt;VY+=420*dt;VX*=Math.Pow(.55,dt);if(X<left){X=left;VX=Math.Abs(VX)*.6;}if(X>right-26){X=right-26;VX=-Math.Abs(VX)*.6;}if(Y>floor-26){Y=floor-26;VY=-Math.Abs(VY)*.42;if(Math.Abs(VY)<25)VY=0;}if(age>18){VX=0;Y=floor-26;}Move(ref petX,X+13-petWidth/2,pace*dt);petX=Math.Max(left,Math.Min(right-petWidth,petX));if(Math.Abs(petX+petWidth/2-X-13)<petWidth*.55&&Y>floor-65)Phase=2;}
-   if(Phase==2){Move(ref petX,homeCenter-petWidth/2,pace*dt);X=petX+petWidth*.60;Y=floor-petHeight*.45;if(Math.Abs(petX+petWidth/2-homeCenter)<4){Phase=0;X=homeCenter+25;Y=floor-26;return true;}}
+   if(Phase==2){Move(ref petX,homeCenter-petWidth/2,pace*dt);X=petX+petWidth*.60;Y=floor-petHeight*.45;if(Math.Abs(petX+petWidth/2-homeCenter)<4){Phase=0;X=homeCenter+25;Y=floor-26;Returns++;return true;}}
    return false;
   }
   public static void Move(ref double value,double target,double max){value+=Math.Max(-max,Math.Min(max,target-value));}

@@ -14,7 +14,7 @@ import javax.net.ssl.HttpsURLConnection;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
- public static final String VERSION="1.2.0";
+ public static final String VERSION="1.3.0";
  private TextView status;private SharedPreferences prefs;private boolean requestedStart,checking;
  int dp(float n){return Math.round(n*getResources().getDisplayMetrics().density);}
  @Override public void onCreate(Bundle state){
@@ -23,7 +23,7 @@ public class MainActivity extends Activity {
   ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(page);setContentView(scroll);
   ImageView icon=new ImageView(this);icon.setImageResource(R.drawable.pip_icon);icon.setAdjustViewBounds(true);LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(dp(100),dp(108));ip.gravity=Gravity.CENTER_HORIZONTAL;page.addView(icon,ip);
   TextView title=label(page,"Пип рядом 🦊 · "+VERSION,25);title.setGravity(Gravity.CENTER);title.setTextColor(Color.rgb(15,98,101));
-  label(page,"Пип живёт без ChatGPT и интернета. Проверка обновлений — только по кнопке.",15);
+  label(page,"Пип живёт без ChatGPT. Интернет нужен только для включённых визитов и проверки обновлений.",15);
   status=label(page,"",14);
   buttonRow(page,new String[]{"Показать Пипа","Спрятать Пипа"},new String[]{"SHOW","STOP"});
   buttonRow(page,new String[]{"Погладить","Поиграть"},new String[]{"PET","PLAY"});
@@ -31,6 +31,9 @@ public class MainActivity extends Activity {
   buttonRow(page,new String[]{"Бросить мячик","Убрать мячик"},new String[]{"BALL","HIDE_BALL"});
   buttonRow(page,new String[]{"Домой","Проверить напоминание"},new String[]{"HOME","REMIND"});
   label(page,"Перетащи домик в удобное место. Мячик можно бросить пальцем — Пип принесёт его обратно. В режиме компании он спокойно сидит на выбранном месте.",14);
+  addButton(page,"Игры, привычки и рабочий режим",new View.OnClickListener(){public void onClick(View v){lifeDialog();}});
+  addButton(page,"Дружба и дневник",new View.OnClickListener(){public void onClick(View v){diary();}});
+  addButton(page,"Друзья и визиты через интернет",new View.OnClickListener(){public void onClick(View v){SocialClient.open(MainActivity.this);}});
   label(page,"Настройки поведения",20);
   select(page,"Размер",new String[]{"Маленький","Обычный","Большой"},"size",new int[]{80,104,136},104);
   select(page,"Активность",new String[]{"Спокойный","Обычный","Игривый"},"activity",new int[]{0,1,2},1);
@@ -60,6 +63,14 @@ public class MainActivity extends Activity {
  }
  void refresh(){if(status==null)return;String s=!Settings.canDrawOverlays(this)?"Нужно разрешение поверх приложений":!prefs.getBoolean("enabled",false)?"Пип спрятан":prefs.getLong("quietUntil",0)>System.currentTimeMillis()?"Пип отдыхает в режиме «не мешать»":"Пип готов к общению";status.setText(s);}
  @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(result!=RESULT_OK||data==null||data.getData()==null)return;try{if(request==51){try(OutputStream out=getContentResolver().openOutputStream(data.getData())){if(out==null)throw new IOException();out.write(Profile.from(prefs).json().toString(2).getBytes("UTF-8"));}Toast.makeText(this,"Настройки сохранены. Передай файл на другое устройство.",Toast.LENGTH_LONG).show();}else if(request==52){ByteArrayOutputStream bytes=new ByteArrayOutputStream();try(InputStream in=getContentResolver().openInputStream(data.getData())){if(in==null)throw new IOException();byte[] buffer=new byte[2048];int n;while((n=in.read(buffer))!=-1){if(bytes.size()+n>65536)throw new IOException();bytes.write(buffer,0,n);}}Profile imported=Profile.parse(bytes.toString("UTF-8"));imported.apply(prefs);if(prefs.getBoolean("enabled",false)&&Settings.canDrawOverlays(this))startForegroundService(new Intent(this,PetService.class).setAction("IMPORT"));Toast.makeText(this,"Настройки перенесены. Системные разрешения не менялись.",Toast.LENGTH_LONG).show();recreate();}}catch(Exception e){new AlertDialog.Builder(this).setTitle("Настройки Пипа").setMessage("Не удалось обработать файл. Нужны настройки Пипа в формате .pip.json.").setPositiveButton("Понятно",null).show();}}
+ void diary(){StringBuilder text=new StringBuilder("Дружба: "+prefs.getInt("bond",0)+" тёплых моментов · уровень "+LifeFeatures.level(prefs)+"\nНа 2 уровне — уверенная лапа, на 3 — прыжки в танце. Прогресс не уменьшается, если ты занят.\n\n");try{org.json.JSONArray a=new org.json.JSONArray(prefs.getString("diary","[]"));for(int i=0;i<a.length();i++)text.append(a.getString(i)).append("\n\n");}catch(Exception e){}TextView t=new TextView(this);t.setText(text);t.setPadding(dp(16),dp(12),dp(16),dp(12));t.setTextSize(16);ScrollView sc=new ScrollView(this);sc.addView(t);new AlertDialog.Builder(this).setTitle("Дружба с Пипом").setView(sc).setPositiveButton("Закрыть",null).show();}
+ void lifeDialog(){final LinearLayout page=new LinearLayout(this);page.setOrientation(1);page.setPadding(dp(12),dp(8),dp(12),dp(8));ScrollView sc=new ScrollView(this);sc.addView(page);
+  final TextView focusStatus=label(page,"",16);final Handler lifeHandler=new Handler();final Runnable lifeStatus=new Runnable(){public void run(){long end=prefs.getLong("focusUntil",0);long seconds=Math.max(0,(end-SystemClock.elapsedRealtime())/1000);focusStatus.setText(end==0?"Рабочий режим выключен":(prefs.getBoolean("focusBreak",false)?"Перерыв: ":"Работа: ")+String.format(java.util.Locale.ROOT,"%02d:%02d",seconds/60,seconds%60));lifeHandler.postDelayed(this,1000);}};lifeHandler.post(lifeStatus);
+  label(page,"Маленькие привычки и уют",19);for(final String key:new String[]{"habits","cozy"}){Switch sw=new Switch(this);sw.setText(key.equals("habits")?"Привычки: кружиться и выглядывать":"Коврик, подушка и коробка");sw.setChecked(prefs.getBoolean(key,true));sw.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener(){public void onCheckedChanged(CompoundButton v,boolean on){prefs.edit().putBoolean(key,on).apply();}});page.addView(sw);}
+  buttonRow(page,new String[]{"Поймать пёрышко","Дай лапу"},new String[]{"FEATHER","PAW"});addButton(page,"Найти спрятанную игрушку",new View.OnClickListener(){public void onClick(View v){findToy();}});
+  label(page,"Танцы: включи музыку и выбери темп. Пип танцует минуту. Звук не записывается.",14);select(page,"Темп танца",new String[]{"90 ударов/мин","120 ударов/мин","150 ударов/мин"},"danceBpm",new int[]{90,120,150},120);buttonRow(page,new String[]{"Танцевать","Остановить танец"},new String[]{"DANCE","STOP_DANCE"});
+  label(page,"Работа рядом с Пипом. После интервала — 5 минут отдыха. Режим заканчивается после перерыва; снова запускается вручную.",14);select(page,"Рабочий интервал",new String[]{"15 минут","25 минут","45 минут"},"focusMinutes",new int[]{15,25,45},25);buttonRow(page,new String[]{"Начать работу","Перейти к перерыву"},new String[]{"FOCUS","FOCUS_BREAK"});buttonRow(page,new String[]{"Завершить рабочий режим","Погладить"},new String[]{"STOP_FOCUS","PET"});AlertDialog lifeDialog=new AlertDialog.Builder(this).setTitle("Жизнь Пипа").setView(sc).setPositiveButton("Закрыть",null).create();lifeDialog.setOnDismissListener(new DialogInterface.OnDismissListener(){public void onDismiss(DialogInterface d){lifeHandler.removeCallbacksAndMessages(null);}});lifeDialog.show();}
+ void findToy(){final int hidden=new java.util.Random().nextInt(3);final AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Где игрушка?").setItems(new String[]{"Коробка 1","Коробка 2","Коробка 3"},null).setNegativeButton("Закрыть",null).create();dialog.setOnShowListener(new DialogInterface.OnShowListener(){public void onShow(DialogInterface d){dialog.getListView().setOnItemClickListener(new AdapterView.OnItemClickListener(){public void onItemClick(AdapterView<?> p,View v,int n,long id){if(n==hidden){act("FOUND");dialog.dismiss();Toast.makeText(MainActivity.this,"Нашли! Пип радуется 🦊",Toast.LENGTH_LONG).show();}else Toast.makeText(MainActivity.this,"Здесь пусто. Попробуй другую коробку.",Toast.LENGTH_SHORT).show();}});}});dialog.show();}
  public static int compareVersions(String a,String b){String[] x=a.split("\\."),y=b.split("\\.");for(int i=0;i<Math.max(x.length,y.length);i++){int l=i<x.length?Integer.parseInt(x[i]):0,r=i<y.length?Integer.parseInt(y[i]):0;if(l!=r)return l<r?-1:1;}return 0;}
  void checkUpdates(){
   if(checking)return;checking=true;Toast.makeText(this,"Проверяю версию на GitHub…",Toast.LENGTH_SHORT).show();
